@@ -30,5 +30,5 @@
 *.sublime-workspace
 
 # Dependency directories (you may adjust as per your needs)
-/vendor/
+#/vendor/
 /externals/
