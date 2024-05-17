@@ -1,0 +1,34 @@
+# CMake generated files
+/CMakeFiles/
+/CMakeScripts/
+/CMakeCache.txt
+/CMakeTmp/
+/*.cmake
+/*.cbp
+/*.workspace
+/*.layout
+/*.user
+/*.suo
+
+# Compiled binaries
+/build/
+/bin/
+/lib/
+/*.so
+/*.a
+/*.dll
+/*.exe
+
+# Generated files
+/compile_commands.json
+/Makefile
+
+# IDE-specific files
+/.vscode/
+/.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Dependency directories (you may adjust as per your needs)
+/vendor/
+/externals/
