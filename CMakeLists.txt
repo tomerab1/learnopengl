@@ -15,5 +15,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(GLFW)
 
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog
+    GIT_TAG  v1.14.1 
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(spdlog)
+
+add_subdirectory(configured)
 add_subdirectory(src)
 add_subdirectory(app)
