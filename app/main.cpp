@@ -32,26 +32,6 @@ struct RGBColor
     }
 };
 
-static constexpr const char* kVertexShader = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-
-    void main()
-    {
-        gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-    }
-)";
-
-static constexpr const char* kFragmentShader = R"(
-    #version 330 core
-    out vec4 FragColor;
-
-    void main()
-    {
-        FragColor = vec4(0.0f, 1.0f, 0.929f, 1.0f);
-    } 
-)";
-
 int main()
 {
     glfwInit();
