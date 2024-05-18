@@ -21,12 +21,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 struct RGBColor
 {
     float r, g, b, alpha;
-};
 
-RGBColor getRGB(int r, int g, int b, float alpha)
-{
-    return RGBColor{r / 255.f, g / 255.f, b / 255.f, alpha};
-}
+    static RGBColor GetRGB(int r, int g, int b, float alpha)
+    {
+        return RGBColor{r / 255.f, g / 255.f, b / 255.f, alpha};
+    }
+};
 
 int main()
 {
@@ -58,7 +58,7 @@ int main()
 
     while (!glfwWindowShouldClose(window))
     {
-        const auto [r, g, b, a] = getRGB(139, 173, 176, 1.f);
+        const auto [r, g, b, a] = RGBColor::GetRGB(139, 173, 176, 1.f);
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
