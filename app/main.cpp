@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include "config.h"
+#include "glfw_backend.h"
 #include "shader_program.h"
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height)
@@ -34,31 +35,26 @@ struct RGBColor
 
 int main()
 {
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    GLFWBackend glfw_backend;
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Learnopengl", nullptr, nullptr);
+    GLFWwindow* window = glfw_backend.CreateWindow(800, 600, "Learnopengl");
+
     if (!window)
     {
         spdlog::error("Failed to create GLFW window");
-        glfwTerminate();
         return -1;
     }
 
-    glfwMakeContextCurrent(window);
+    glfw_backend.SetContextCurrent(window);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    if (!glfw_backend.InitGlad())
     {
         spdlog::error("Failed to initialize GLAD");
-        glfwTerminate();
         return -1;
     }
 
-    glViewport(0, 0, 800, 600);
-    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-    glfwSetKeyCallback(window, keyCallback);
+    glfw_backend.setFrameBufferSizeCb(framebufferSizeCallback);
+    glfw_backend.setKeyCb(keyCallback);
 
     // clang-format off
     float vertices[] = {
@@ -118,6 +114,5 @@ int main()
     glDeleteBuffers(1, &vbo);
     shader_program.Delete();
 
-    glfwTerminate();
     return 0;
 }
