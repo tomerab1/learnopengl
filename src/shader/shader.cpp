@@ -1,7 +1,9 @@
 #include "shader.h"
 
+#include <cassert>
 #include <cstring>
 #include <glad/glad.h>
+#include <iostream>
 #include <sstream>
 
 Shader::Shader(const path_t& shader_path, std::uint32_t shader_type)
@@ -25,8 +27,12 @@ bool Shader::Compile()
         ss << input_stream.rdbuf();
 
         auto shader_str = ss.str();
-        char* shader_source = new char[shader_str.length()];
+        char* shader_source = new char[shader_str.length() + 1];
+
+        assert(shader_source != nullptr);
         std::memcpy(shader_source, shader_str.c_str(), shader_str.length());
+
+        *(shader_source + shader_str.length()) = '\0';
 
         glShaderSource(shader_program, 1, &shader_source, nullptr);
         glCompileShader(shader_program);

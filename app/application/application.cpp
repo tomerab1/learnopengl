@@ -7,21 +7,11 @@
 #include <spdlog/spdlog.h>
 
 #include "config.h"
-#include "glfw_backend.h"
 #include "shader_program.h"
 
-void framebufferSizeCallback(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-}
-
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    {
-        glfwSetWindowShouldClose(window, true);
-    }
-}
+// clang-format off
+#include "application.h"
+// clang-format on
 
 struct RGBColor
 {
@@ -33,29 +23,14 @@ struct RGBColor
     }
 };
 
-int main()
+Application::Application(GLFWwindow* window)
+  : window{window}
 {
-    GLFWBackend glfw_backend;
+    assert(window != nullptr);
+}
 
-    GLFWwindow* window = glfw_backend.CreateWindow(800, 600, "Learnopengl");
-
-    if (!window)
-    {
-        spdlog::error("Failed to create GLFW window");
-        return -1;
-    }
-
-    glfw_backend.SetContextCurrent(window);
-
-    if (!glfw_backend.InitGlad())
-    {
-        spdlog::error("Failed to initialize GLAD");
-        return -1;
-    }
-
-    glfw_backend.setFrameBufferSizeCb(framebufferSizeCallback);
-    glfw_backend.setKeyCb(keyCallback);
-
+void Application::Run(bool* is_hot_reloaded)
+{
     // clang-format off
     float vertices[] = {
                         0.25f, 0.25f, 0.f,
@@ -88,15 +63,23 @@ int main()
     if (!shader_program.Link())
     {
         spdlog::error("Failed to create a shader program: {}", shader_program.GetLastError());
-        return -1;
+        return;
     }
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
-    while (!glfwWindowShouldClose(window))
+    bool first = true;
+
+    while (!glfwWindowShouldClose(window) && !*is_hot_reloaded)
     {
-        const auto [r, g, b, a] = RGBColor::GetRGB(0x0d, 0x11, 0x17, 1.f);
+        const auto [r, g, b, a] = RGBColor::GetRGB(0x00, 0x0, 0xff, 1.f);
+
+        if (first)
+        {
+            std::cout << r << " " << g << " " << b << "\n";
+            first = false;
+        }
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -112,7 +95,24 @@ int main()
 
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &ebo);
     shader_program.Delete();
+}
 
-    return 0;
+extern "C" Application* CreateApplication(GLFWwindow* win)
+{
+    std::cout << "here create\n";
+    return new Application(win);
+}
+
+extern "C" void DestroyApplication(Application* app)
+{
+    delete app;
+}
+
+extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
+{
+    assert(app != nullptr);
+
+    app->Run(is_hot_reloaded);
 }
