@@ -1,9 +1,7 @@
 #include "shader.h"
 
-// clang-format off
-#include <glad/glad.h>
-// clang-format on
 #include <cstring>
+#include <glad/glad.h>
 #include <sstream>
 
 Shader::Shader(const path_t& shader_path, std::uint32_t shader_type)
@@ -62,3 +60,5 @@ void Shader::Delete()
 {
     glDeleteShader(shader_program);
 }
+
+Shader::~Shader() = default;

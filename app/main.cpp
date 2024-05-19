@@ -7,7 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include "config.h"
-#include "shader.h"
+#include "shader_program.h"
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
@@ -86,41 +86,26 @@ int main()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    Shader vertex_shader{kProjectRootDirPath / "shaders" / "vertex_shader.glsl", GL_VERTEX_SHADER};
+    ShaderProgram shader_program{kProjectRootDirPath / "shaders" / "vertex_shader.glsl",
+                                 kProjectRootDirPath / "shaders" / "fragment_shader.glsl"};
 
-    if (!vertex_shader.Compile())
+    if (!shader_program.Link())
     {
-        spdlog::error("Failed to compile vertex shader: {}", vertex_shader.GetLastError());
+        spdlog::error("Failed to create a shader program: {}", shader_program.GetLastError());
         return -1;
     }
-
-    Shader fragment_shader{kProjectRootDirPath / "shaders" / "fragment_shader.glsl", GL_FRAGMENT_SHADER};
-
-    if (!fragment_shader.Compile())
-    {
-        spdlog::error("Failed to compile fragment shader: {}", fragment_shader.GetLastError());
-        return -1;
-    }
-
-    std::uint32_t shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertex_shader.GetCompiledShader());
-    glAttachShader(shaderProgram, fragment_shader.GetCompiledShader());
-    glLinkProgram(shaderProgram);
-
-    vertex_shader.Delete();
-    fragment_shader.Delete();
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
     while (!glfwWindowShouldClose(window))
     {
-        const auto [r, g, b, a] = RGBColor::GetRGB(0x28, 0x2b, 0x2e, 1.f);
+        const auto [r, g, b, a] = RGBColor::GetRGB(0x0d, 0x11, 0x17, 1.f);
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
+        shader_program.UseProgram();
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
@@ -131,7 +116,7 @@ int main()
 
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
-    glDeleteProgram(shaderProgram);
+    shader_program.Delete();
 
     glfwTerminate();
     return 0;

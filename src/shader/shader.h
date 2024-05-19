@@ -15,11 +15,13 @@ class Shader
     const char* GetLastError();
     void Delete();
 
+    ~Shader();
+
   private:
     static constexpr std::size_t kErrorMaxSize{512};
+    char error_buffer[kErrorMaxSize]{};
 
     path_t path;
     std::uint32_t shader_type;
     std::uint32_t shader_program{};
-    char error_buffer[kErrorMaxSize]{};
 };
