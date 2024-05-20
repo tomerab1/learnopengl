@@ -1,13 +1,13 @@
 #pragma once
 
 struct GLFWwindow;
+struct RGBColor;
 
 class Application
 {
   public:
     explicit Application(GLFWwindow* window);
-
-    void Run(bool* is_hot_reloaded);
+    GLFWwindow* GetWindow() const;
 
   private:
     GLFWwindow* window;

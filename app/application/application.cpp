@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <stdio.h>
 
 #include "config.h"
 #include "shader_program.h"
@@ -29,7 +30,23 @@ Application::Application(GLFWwindow* window)
     assert(window != nullptr);
 }
 
-void Application::Run(bool* is_hot_reloaded)
+GLFWwindow* Application::GetWindow() const
+{
+    return window;
+}
+
+extern "C" Application* CreateApplication(GLFWwindow* win)
+{
+    Application* ptr = new Application(win);
+    return ptr;
+}
+
+extern "C" void DestroyApplication(Application** app)
+{
+    delete *app;
+}
+
+extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
 {
     // clang-format off
     float vertices[] = {
@@ -69,17 +86,11 @@ void Application::Run(bool* is_hot_reloaded)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
-    bool first = true;
+    std::cout << "here \n";
 
-    while (!glfwWindowShouldClose(window) && !*is_hot_reloaded)
+    while (!glfwWindowShouldClose(app->GetWindow()) && !*is_hot_reloaded)
     {
-        const auto [r, g, b, a] = RGBColor::GetRGB(0x00, 0x0, 0xff, 1.f);
-
-        if (first)
-        {
-            std::cout << r << " " << g << " " << b << "\n";
-            first = false;
-        }
+        const auto [r, g, b, a] = RGBColor::GetRGB(0xff, 0x56, 0x33, 1);
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -89,7 +100,7 @@ void Application::Run(bool* is_hot_reloaded)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(app->GetWindow());
         glfwPollEvents();
     }
 
@@ -97,22 +108,4 @@ void Application::Run(bool* is_hot_reloaded)
     glDeleteBuffers(1, &vbo);
     glDeleteBuffers(1, &ebo);
     shader_program.Delete();
-}
-
-extern "C" Application* CreateApplication(GLFWwindow* win)
-{
-    std::cout << "here create\n";
-    return new Application(win);
-}
-
-extern "C" void DestroyApplication(Application* app)
-{
-    delete app;
-}
-
-extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
-{
-    assert(app != nullptr);
-
-    app->Run(is_hot_reloaded);
 }

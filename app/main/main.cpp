@@ -15,8 +15,11 @@
 struct Application;
 
 typedef Application* (*CreateApplicationFunc)(GLFWwindow*);
-typedef void (*DestroyApplicationFunc)(Application*);
+typedef void (*DestroyApplicationFunc)(Application**);
 typedef void (*RunApplicationFunc)(Application*, bool*);
+
+std::string libPath = "libAppLib.so";
+std::string tmp_name = "TempLib";
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
@@ -39,7 +42,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
 bool loadLibrary(const char* libPath, void*& handle, CreateApplicationFunc* createApp, DestroyApplicationFunc* destroyApp, RunApplicationFunc* runApp)
 {
-    handle = dlopen(libPath, RTLD_LAZY);
+    handle = dlopen(libPath, RTLD_NOW);
     if (!handle)
     {
         std::cerr << "Failed to load " << libPath << ": " << dlerror() << '\n';
@@ -49,6 +52,7 @@ bool loadLibrary(const char* libPath, void*& handle, CreateApplicationFunc* crea
     *createApp = (CreateApplicationFunc)dlsym(handle, "CreateApplication");
     *destroyApp = (DestroyApplicationFunc)dlsym(handle, "DestroyApplication");
     *runApp = (RunApplicationFunc)dlsym(handle, "RunApplication");
+
     if (!createApp || !destroyApp || !runApp)
     {
         std::cerr << "Failed to load symbols: " << dlerror() << '\n';
@@ -58,13 +62,8 @@ bool loadLibrary(const char* libPath, void*& handle, CreateApplicationFunc* crea
     return true;
 }
 
-void unloadLibrary(void*& handle, DestroyApplicationFunc destroyApp, Application** app)
+void unloadLibrary(void*& handle)
 {
-    if (*app)
-    {
-        destroyApp(*app);
-        *app = nullptr;
-    }
     if (handle)
     {
         dlclose(handle);
@@ -74,21 +73,27 @@ void unloadLibrary(void*& handle, DestroyApplicationFunc destroyApp, Application
 
 bool recompileLibrary()
 {
-    std::string command = "cd " + kProjectRootDirPath.string() + " && cd build && cmake --build . --target AppLib";
+    std::string command = "cd " + kProjectRootDirPath.string() +
+                          " && cd build && cmake .." +
+                          " && cmake --build . --target " + "AppLib";
 
-    int result = system(command.c_str());
-    return result == 0;
+    if (system(command.c_str()))
+    {
+        spdlog::error("Failed to recompile the library");
+        return false;
+    }
+
+    return true;
 }
 
 int main()
 {
-    const char* libPath = "libAppLib.so";
     void* appLibHandle = nullptr;
     CreateApplicationFunc createApp = nullptr;
     DestroyApplicationFunc destroyApp = nullptr;
     RunApplicationFunc runApp = nullptr;
 
-    if (!loadLibrary(libPath, appLibHandle, &createApp, &destroyApp, &runApp))
+    if (!loadLibrary(libPath.c_str(), appLibHandle, &createApp, &destroyApp, &runApp))
     {
         return -1;
     }
@@ -99,7 +104,7 @@ int main()
     if (!window)
     {
         spdlog::error("Failed to create GLFW window");
-        unloadLibrary(appLibHandle, destroyApp, nullptr);
+        unloadLibrary(appLibHandle);
         return -1;
     }
 
@@ -108,7 +113,7 @@ int main()
     if (!glfw_backend.InitGlad())
     {
         spdlog::error("Failed to initialize GLAD");
-        unloadLibrary(appLibHandle, destroyApp, nullptr);
+        unloadLibrary(appLibHandle);
         return -1;
     }
 
@@ -123,12 +128,15 @@ int main()
         {
             std::cout << "Hot reload triggered\n";
 
-            // Unload the current library
-            unloadLibrary(appLibHandle, destroyApp, &app);
+            destroyApp(&app);
 
             createApp = nullptr;
             destroyApp = nullptr;
             runApp = nullptr;
+            app = nullptr;
+
+            // Unload the current library
+            unloadLibrary(appLibHandle);
 
             // Recompile the shared library
             if (!recompileLibrary())
@@ -138,7 +146,7 @@ int main()
             }
 
             // Load the recompiled library
-            if (!loadLibrary(libPath, appLibHandle, &createApp, &destroyApp, &runApp))
+            if (!loadLibrary(libPath.c_str(), appLibHandle, &createApp, &destroyApp, &runApp))
             {
                 spdlog::error("Failed to reload library");
                 break;
@@ -152,7 +160,9 @@ int main()
         runApp(app, &should_hot_reload);
     }
 
-    unloadLibrary(appLibHandle, destroyApp, &app);
+    destroyApp(&app);
+
+    unloadLibrary(appLibHandle);
     glfwDestroyWindow(window);
     glfwTerminate();
 
