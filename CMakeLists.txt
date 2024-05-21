@@ -24,6 +24,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+FetchContent_Declare(
+    nlohmann_json 
+    GIT_REPOSITORY https://github.com/nlohmann/json
+    GIT_TAG  v3.11.3  
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 add_subdirectory(configured)
 add_subdirectory(src)
 add_subdirectory(app)

@@ -1,4 +1,12 @@
 // clang-format off
+#include "application.h"
+// clang-format on
+
+#include "config.h"
+#include "glfw_backend.h"
+#include "shader_program.h"
+
+// clang-format off
 #include <glad/glad.h>
 // clang-format on
 #include <GLFW/glfw3.h>
@@ -6,13 +14,6 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <stdio.h>
-
-#include "config.h"
-#include "shader_program.h"
-
-// clang-format off
-#include "application.h"
-// clang-format on
 
 struct RGBColor
 {
@@ -24,36 +25,60 @@ struct RGBColor
     }
 };
 
-Application::Application(GLFWwindow* window)
-  : window{window}
+static bool shouldHotReload{false};
+static bool shouldCloseApp{false};
+
+void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
-    assert(window != nullptr);
+    glViewport(0, 0, width, height);
 }
 
-GLFWwindow* Application::GetWindow() const
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    return window;
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        shouldCloseApp = true;
+        glfwSetWindowShouldClose(window, true);
+    }
+    if (key == GLFW_KEY_F5 && action == GLFW_PRESS)
+    {
+        shouldHotReload = true;
+    }
 }
 
-extern "C" Application* CreateApplication(GLFWwindow* win)
+extern "C" bool ShouldHotReload()
 {
-    Application* ptr = new Application(win);
-    return ptr;
+    return shouldHotReload;
 }
 
-extern "C" void DestroyApplication(Application** app)
+extern "C" bool ShouldCloseApp()
 {
-    delete *app;
+    return shouldCloseApp;
 }
 
-extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
+extern "C" void RunApplication()
 {
+    shouldHotReload = false;
+    GLFWBackend glfwBackend;
+
+    GLFWwindow* window = glfwBackend.CreateWindow(800, 600, "learnopengl");
+
+    glfwBackend.SetContextCurrent(window);
+    if (!glfwBackend.InitGlad())
+    {
+        spdlog::error("Failed to init GLAD");
+        return;
+    }
+
+    glfwBackend.setFrameBufferSizeCb(framebufferSizeCallback);
+    glfwBackend.setKeyCb(keyCallback);
+
     // clang-format off
     float vertices[] = {
-                        0.25f, 0.25f, 0.f,
-                        0.25f, -0.25f, 0.f,
-                        -0.25f, -0.25f, 0.f,
-                        -0.25f, 0.25f, 0.f
+                        0.5f, 0.5f, 0.f,
+                        0.5f, -0.5f, 0.f,
+                        -0.5f, -0.5f, 0.f,
+                        -0.5f, 0.5f, 0.f
                      };
     
     std::uint32_t indices[] = {
@@ -86,11 +111,11 @@ extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
-    std::cout << "here \n";
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    while (!glfwWindowShouldClose(app->GetWindow()) && !*is_hot_reloaded)
+    while (!glfwWindowShouldClose(window) && !shouldHotReload)
     {
-        const auto [r, g, b, a] = RGBColor::GetRGB(0xff, 0x56, 0x33, 1);
+        const auto [r, g, b, a] = RGBColor::GetRGB(0x1e, 0xf3, 0x73, 1);
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -100,7 +125,7 @@ extern "C" void RunApplication(Application* app, bool* is_hot_reloaded)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
-        glfwSwapBuffers(app->GetWindow());
+        glfwSwapBuffers(window);
         glfwPollEvents();
     }
 

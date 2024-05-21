@@ -1,64 +1,60 @@
 #include <cstdlib>
 #include <dlfcn.h>
+#include <fstream>
 #include <iostream>
 #include <thread>
 
-// clang-format off
-#include <glad/glad.h>
-// clang-format on
-#include "glfw_backend.h"
-#include <GLFW/glfw3.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include "config.h"
 
-struct Application;
+typedef void (*RunApplicationFunc)();
+typedef bool (*ShouldHotReloadFunc)();
+typedef bool (*ShouldCloseAppFunc)();
 
-typedef Application* (*CreateApplicationFunc)(GLFWwindow*);
-typedef void (*DestroyApplicationFunc)(Application**);
-typedef void (*RunApplicationFunc)(Application*, bool*);
+RunApplicationFunc runAppFn = nullptr;
+ShouldCloseAppFunc shouldCloseAppFn = nullptr;
+ShouldHotReloadFunc shouldHotReloadFn = nullptr;
 
-std::string libPath = "libAppLib.so";
-std::string tmp_name = "TempLib";
-
-void framebufferSizeCallback(GLFWwindow* window, int width, int height)
+struct HotReloadFuncs
 {
-    glViewport(0, 0, width, height);
-}
+    void* fn;
+    std::string sym;
+};
 
-bool should_hot_reload{false};
+HotReloadFuncs hotReloadFunc[] = {
+    {.fn = nullptr, .sym = "RunApplication"},
+    {.fn = nullptr, .sym = "ShouldCloseApp"},
+    {.fn = nullptr, .sym = "ShouldHotReload"},
+};
 
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+const std::string baseName = "AppLib";
+std::string libName;
+std::filesystem::path libPath;
+nlohmann::json json;
+
+bool loadLibrary(const char* libPath, void*& handle)
 {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    {
-        glfwSetWindowShouldClose(window, true);
-    }
-    if (key == GLFW_KEY_F5 && action == GLFW_PRESS)
-    {
-        should_hot_reload = true;
-    }
-}
-
-bool loadLibrary(const char* libPath, void*& handle, CreateApplicationFunc* createApp, DestroyApplicationFunc* destroyApp, RunApplicationFunc* runApp)
-{
-    handle = dlopen(libPath, RTLD_NOW);
+    handle = dlopen(libPath, RTLD_NOW | RTLD_LOCAL);
     if (!handle)
     {
-        std::cerr << "Failed to load " << libPath << ": " << dlerror() << '\n';
+        spdlog::error("Failed to load {} : {}", libPath, dlerror());
         return false;
     }
 
-    *createApp = (CreateApplicationFunc)dlsym(handle, "CreateApplication");
-    *destroyApp = (DestroyApplicationFunc)dlsym(handle, "DestroyApplication");
-    *runApp = (RunApplicationFunc)dlsym(handle, "RunApplication");
-
-    if (!createApp || !destroyApp || !runApp)
+    for (auto& entry : hotReloadFunc)
     {
-        std::cerr << "Failed to load symbols: " << dlerror() << '\n';
-        dlclose(handle);
-        return false;
+        entry.fn = dlsym(handle, entry.sym.c_str());
+
+        if (!entry.fn)
+        {
+            spdlog::error("Failed to load symbol : {}", dlerror());
+            dlclose(handle);
+            return false;
+        }
     }
+
     return true;
 }
 
@@ -66,6 +62,11 @@ void unloadLibrary(void*& handle)
 {
     if (handle)
     {
+        for (auto& entry : hotReloadFunc)
+        {
+            entry.fn = nullptr;
+        }
+
         dlclose(handle);
         handle = nullptr;
     }
@@ -73,9 +74,28 @@ void unloadLibrary(void*& handle)
 
 bool recompileLibrary()
 {
+    try
+    {
+        std::filesystem::remove(libPath);
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::error("{}", e.what());
+        return false;
+    }
+
+    libName = baseName + std::to_string(std::chrono::seconds(std::time(NULL)).count());
+    libPath = libPath.parent_path() / ("lib" + libName + ".so");
+
+    json["libName"] = libName;
+    json["libPath"] = libPath;
+
+    std::ofstream outStream{kProjectRootDirPath / "hot-reload.json", std::fstream::binary};
+    outStream << nlohmann::to_string(json);
+
     std::string command = "cd " + kProjectRootDirPath.string() +
-                          " && cd build && cmake .." +
-                          " && cmake --build . --target " + "AppLib";
+                          " && cd build && cmake -DNEW_LIB_NAME=" + libName + " .. " +
+                          " && cmake --build . --target " + libName;
 
     if (system(command.c_str()))
     {
@@ -88,83 +108,52 @@ bool recompileLibrary()
 
 int main()
 {
+    if (!std::filesystem::exists(kProjectRootDirPath / "hot-reload.json"))
+    {
+        std::cout << "here\n";
+        std::ofstream outStream{kProjectRootDirPath / "hot-reload.json"};
+        const std::string firstLoadJson = R"({
+            "libPath": "/home/tomerab/VSCProjects/learnopengl/build/app/application/libAppLib.so",
+            "libName": "AppLib"
+        })";
+
+        outStream << firstLoadJson;
+    }
+
+    std::ifstream inStream{kProjectRootDirPath / "hot-reload.json"};
+    std::stringstream ss{};
+
+    ss << inStream.rdbuf();
+
+    json = nlohmann::json::parse(ss.str());
+
+    libPath = std::move(std::filesystem::path(json["libPath"]));
+    libName = std::move(json["libName"]);
+
     void* appLibHandle = nullptr;
-    CreateApplicationFunc createApp = nullptr;
-    DestroyApplicationFunc destroyApp = nullptr;
-    RunApplicationFunc runApp = nullptr;
 
-    if (!loadLibrary(libPath.c_str(), appLibHandle, &createApp, &destroyApp, &runApp))
+    if (!loadLibrary(libPath.c_str(), appLibHandle))
     {
         return -1;
     }
 
-    GLFWBackend glfw_backend;
-    GLFWwindow* window = glfw_backend.CreateWindow(800, 600, "LearnOpenGL");
-
-    if (!window)
+    while (true)
     {
-        spdlog::error("Failed to create GLFW window");
-        unloadLibrary(appLibHandle);
-        return -1;
-    }
-
-    glfw_backend.SetContextCurrent(window);
-
-    if (!glfw_backend.InitGlad())
-    {
-        spdlog::error("Failed to initialize GLAD");
-        unloadLibrary(appLibHandle);
-        return -1;
-    }
-
-    glfw_backend.setFrameBufferSizeCb(framebufferSizeCallback);
-    glfw_backend.setKeyCb(keyCallback);
-
-    Application* app = createApp(window);
-
-    while (!glfwWindowShouldClose(window))
-    {
-        if (should_hot_reload)
+        if (((ShouldHotReloadFunc)hotReloadFunc[2].fn)())
         {
-            std::cout << "Hot reload triggered\n";
-
-            destroyApp(&app);
-
-            createApp = nullptr;
-            destroyApp = nullptr;
-            runApp = nullptr;
-            app = nullptr;
-
-            // Unload the current library
             unloadLibrary(appLibHandle);
-
-            // Recompile the shared library
-            if (!recompileLibrary())
-            {
-                spdlog::error("Failed to recompile library");
-                break;
-            }
-
-            // Load the recompiled library
-            if (!loadLibrary(libPath.c_str(), appLibHandle, &createApp, &destroyApp, &runApp))
-            {
-                spdlog::error("Failed to reload library");
-                break;
-            }
-
-            // Recreate the Application instance
-            app = createApp(window);
-            should_hot_reload = false;
+            recompileLibrary();
+            loadLibrary(libPath.c_str(), appLibHandle);
+        }
+        if (((ShouldCloseAppFunc)hotReloadFunc[1].fn)())
+        {
+            break;
         }
 
-        runApp(app, &should_hot_reload);
+        ((RunApplicationFunc)hotReloadFunc[0].fn)();
     }
 
-    destroyApp(&app);
-
     unloadLibrary(appLibHandle);
-    glfwDestroyWindow(window);
-    glfwTerminate();
 
     return 0;
 }
