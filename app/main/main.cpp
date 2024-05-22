@@ -108,8 +108,8 @@ bool recompileLibrary()
     outStream << nlohmann::to_string(json);
 
     std::string command = "cd " + kProjectRootDirPath.string() +
-                          " && cd build && cmake -DNEW_LIB_NAME=" + libName + " .. " +
-                          " && cmake --build . --target " + libName + " > /dev/null";
+                          " && cd build && cmake -DNEW_LIB_NAME=" + libName + " .. > /dev/null 2>&1" +
+                          " && cmake --build . --target " + libName + " > /dev/null 2>&1";
 
     if (system(command.c_str()))
     {
@@ -126,7 +126,7 @@ int main()
     {
         std::ofstream outStream{kProjectRootDirPath / "hot-reload.json"};
         const std::string firstLoadJson = R"({
-            "libPath": "/home/tomerab/VSCProjects/learnopengl/build/app/application/libAppLib.so",
+            "libPath": "build/app/application/libAppLib.so",
             "libName": "AppLib"
         })";
 
