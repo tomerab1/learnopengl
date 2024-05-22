@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <cassert>
+#include <iostream>
 
 GLFWBackend::GLFWBackend()
 {
@@ -24,6 +25,7 @@ GLFWwindow* GLFWBackend::CreateWindow(std::uint32_t width, std::uint32_t height,
 
 void GLFWBackend::SetContextCurrent(GLFWwindow* window)
 {
+    pcurr_context = window;
     glfwMakeContextCurrent(window);
 }
 
@@ -33,11 +35,12 @@ bool GLFWBackend::InitGlad()
     assert(ret != false);
     assert(pcurr_context != nullptr);
 
-    std::int32_t width, height;
+    std::int32_t width,
+        height;
     glfwGetWindowSize(pcurr_context, &width, &height);
 
     glViewport(0, 0, width, height);
-    return ret;
+    return true;
 }
 
 void GLFWBackend::setFrameBufferSizeCb(frame_buffer_size_cb cb)
@@ -54,5 +57,6 @@ void GLFWBackend::setKeyCb(key_press_cb cb)
 
 GLFWBackend::~GLFWBackend()
 {
+    glfwDestroyWindow(pcurr_context);
     glfwTerminate();
 }

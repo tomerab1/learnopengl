@@ -9,13 +9,19 @@
 
 #include "config.h"
 
-typedef void (*RunApplicationFunc)();
+struct Application;
+
+typedef void (*RunApplicationFunc)(Application* app);
+typedef Application* (*CreateApplicationFunc)(std::uint32_t width, std::uint32_t height, std::string_view title);
+typedef void (*DeleteAppFunc)(Application** app);
 typedef bool (*ShouldHotReloadFunc)();
 typedef bool (*ShouldCloseAppFunc)();
 
 RunApplicationFunc runAppFn = nullptr;
 ShouldCloseAppFunc shouldCloseAppFn = nullptr;
 ShouldHotReloadFunc shouldHotReloadFn = nullptr;
+CreateApplicationFunc createApplicationFn = nullptr;
+DeleteAppFunc deleteApplicationFn = nullptr;
 
 struct HotReloadFuncs
 {
@@ -27,7 +33,15 @@ HotReloadFuncs hotReloadFunc[] = {
     {.fn = nullptr, .sym = "RunApplication"},
     {.fn = nullptr, .sym = "ShouldCloseApp"},
     {.fn = nullptr, .sym = "ShouldHotReload"},
+    {.fn = nullptr, .sym = "CreateApp"},
+    {.fn = nullptr, .sym = "DeleteApp"},
 };
+
+template<typename T>
+T GetHotReloadFn(std::size_t idx)
+{
+    return reinterpret_cast<T>(hotReloadFunc[idx].fn);
+}
 
 const std::string baseName = "AppLib";
 std::string libName;
@@ -95,7 +109,7 @@ bool recompileLibrary()
 
     std::string command = "cd " + kProjectRootDirPath.string() +
                           " && cd build && cmake -DNEW_LIB_NAME=" + libName + " .. " +
-                          " && cmake --build . --target " + libName;
+                          " && cmake --build . --target " + libName + " > /dev/null";
 
     if (system(command.c_str()))
     {
@@ -110,7 +124,6 @@ int main()
 {
     if (!std::filesystem::exists(kProjectRootDirPath / "hot-reload.json"))
     {
-        std::cout << "here\n";
         std::ofstream outStream{kProjectRootDirPath / "hot-reload.json"};
         const std::string firstLoadJson = R"({
             "libPath": "/home/tomerab/VSCProjects/learnopengl/build/app/application/libAppLib.so",
@@ -126,7 +139,6 @@ int main()
     ss << inStream.rdbuf();
 
     json = nlohmann::json::parse(ss.str());
-
     libPath = std::move(std::filesystem::path(json["libPath"]));
     libName = std::move(json["libName"]);
 
@@ -137,21 +149,29 @@ int main()
         return -1;
     }
 
+    Application* app = GetHotReloadFn<CreateApplicationFunc>(3)(800, 600, "learnopengl");
+
     while (true)
     {
-        if (((ShouldHotReloadFunc)hotReloadFunc[2].fn)())
+        if (GetHotReloadFn<ShouldHotReloadFunc>(2)())
         {
+            GetHotReloadFn<DeleteAppFunc>(4)(&app);
+
             unloadLibrary(appLibHandle);
             recompileLibrary();
             loadLibrary(libPath.c_str(), appLibHandle);
+
+            app = GetHotReloadFn<CreateApplicationFunc>(3)(800, 600, "learnopengl");
         }
-        if (((ShouldCloseAppFunc)hotReloadFunc[1].fn)())
+        if (GetHotReloadFn<ShouldCloseAppFunc>(1)())
         {
             break;
         }
 
-        ((RunApplicationFunc)hotReloadFunc[0].fn)();
+        GetHotReloadFn<RunApplicationFunc>(0)(app);
     }
+
+    GetHotReloadFn<DeleteAppFunc>(4)(&app);
 
     unloadLibrary(appLibHandle);
 

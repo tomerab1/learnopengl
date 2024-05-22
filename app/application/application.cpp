@@ -46,39 +46,31 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
 }
 
-extern "C" bool ShouldHotReload()
+Application::Application(std::uint32_t width, std::uint32_t height, std::string_view title)
+  : glfwBackend{std::make_unique<GLFWBackend>()}
 {
-    return shouldHotReload;
-}
-
-extern "C" bool ShouldCloseApp()
-{
-    return shouldCloseApp;
-}
-
-extern "C" void RunApplication()
-{
-    shouldHotReload = false;
-    GLFWBackend glfwBackend;
-
-    GLFWwindow* window = glfwBackend.CreateWindow(800, 600, "learnopengl");
-
-    glfwBackend.SetContextCurrent(window);
-    if (!glfwBackend.InitGlad())
+    window = glfwBackend->CreateWindow(800, 600, "learnopengl");
+    glfwBackend->SetContextCurrent(window);
+    if (!glfwBackend->InitGlad())
     {
         spdlog::error("Failed to init GLAD");
         return;
     }
 
-    glfwBackend.setFrameBufferSizeCb(framebufferSizeCallback);
-    glfwBackend.setKeyCb(keyCallback);
+    glfwBackend->setFrameBufferSizeCb(framebufferSizeCallback);
+    glfwBackend->setKeyCb(keyCallback);
+}
+
+void Application::Run()
+{
+    shouldHotReload = false;
 
     // clang-format off
     float vertices[] = {
-                        0.5f, 0.5f, 0.f,
-                        0.5f, -0.5f, 0.f,
-                        -0.5f, -0.5f, 0.f,
-                        -0.5f, 0.5f, 0.f
+                        0.25f, 0.25f, 0.f,
+                        0.25f, -0.25f, 0.f,
+                        -0.25f, -0.25f, 0.f,
+                        -0.25f, 0.25f, 0.f
                      };
     
     std::uint32_t indices[] = {
@@ -111,11 +103,11 @@ extern "C" void RunApplication()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     while (!glfwWindowShouldClose(window) && !shouldHotReload)
     {
-        const auto [r, g, b, a] = RGBColor::GetRGB(0x1e, 0xf3, 0x73, 1);
+        const auto [r, g, b, a] = RGBColor::GetRGB(0x6e, 0x1e, 0x6e, 1);
 
         glClearColor(r, g, b, a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -133,4 +125,34 @@ extern "C" void RunApplication()
     glDeleteBuffers(1, &vbo);
     glDeleteBuffers(1, &ebo);
     shader_program.Delete();
+}
+
+Application::~Application() = default;
+
+extern "C" Application* CreateApp(std::uint32_t width, std::uint32_t height, std::string_view title)
+{
+    return new Application(width, height, title);
+}
+
+extern "C" void DeleteApp(Application** app)
+{
+    assert(*app != nullptr);
+
+    delete *app;
+    *app = nullptr;
+}
+
+extern "C" bool ShouldHotReload()
+{
+    return shouldHotReload;
+}
+
+extern "C" bool ShouldCloseApp()
+{
+    return shouldCloseApp;
+}
+
+extern "C" void RunApplication(Application* app)
+{
+    app->Run();
 }
